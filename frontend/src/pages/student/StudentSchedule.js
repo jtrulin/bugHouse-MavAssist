@@ -52,11 +52,12 @@ function StudentSchedule() {
     fetchUserSession();
   }, []);
 
+  //should hit a backend endpoint to fetch just upcoming sessions instead
   const fetchUpcomingSessions = useCallback(async () => {
     if (!userData || !userData.id) return;
 
     try {
-      const response = await axios.get(`${BACKEND_URL}/api/sessions/student/${userData.id}`, {
+      const response = await axios.get(`${BACKEND_URL}/api/sessions/student/upcoming/${userData.id}`, {
         withCredentials: true
       });
       setUpcomingSessions(response.data);
@@ -186,6 +187,35 @@ function StudentSchedule() {
     } catch (error) {
       console.error('Error booking session:', error);
       setError(error.response?.data?.message || 'Error booking session');
+    }
+  };
+
+  // Function to handle session cancellation
+  const handleCancelSession = async (sessionId, newstatus) => {
+    if (!window.confirm('Are you sure you want to cancel this session?')) return;
+    setError('');
+
+    try {
+      const response = await axios.put(
+        `${BACKEND_URL}/api/sessions/${sessionId}/status`, 
+        { status: newstatus },
+        { withCredentials: true }
+      );
+
+      // Check for success
+      if (response.data.success) {
+        // Update the upcoming sessions list
+        fetchUpcomingSessions();
+        setSuccessMessage('Session cancelled successfully!');
+        setTimeout(() => {
+          setSuccessMessage('');
+        }, 3000);
+      } else {
+        setError('Failed to cancel session');
+      }
+    } catch (error) {
+      console.error('Error cancelling session:', error);
+      setError(error.response?.data?.message || 'Error cancelling session');
     }
   };
 
@@ -373,6 +403,14 @@ function StudentSchedule() {
                         <p className={styles.sessionStatus}>
                           Status: {session.status}
                         </p>
+                        <button
+                          className={styles.cancelButton}
+                          onClick={() => {
+                            handleCancelSession(session._id, 'Cancelled');
+                          }}
+                        >
+                          x
+                        </button>
                       </div>
                     ))
                   ) : (
