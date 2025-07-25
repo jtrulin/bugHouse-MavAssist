@@ -7,11 +7,9 @@ require("dotenv").config();
 const Notification = require("../../models/Notification");
 const Session = require("../../models/Session");
 
-router.post("/send-notification", async (req, res) => {
-  try {
-    const { sessionId } = req.body;
 
-    // Validate required fields
+// Extract sendNotification function for reusability
+async function sendNotification(sessionId) {
     if (!sessionId) {
       return res.status(400).json({ message: "sessionId is required." });
     }
@@ -33,10 +31,10 @@ router.post("/send-notification", async (req, res) => {
         message = `Your session has been scheduled on ${(new Date(session.sessionTime)).toLocaleString()}.`;
         break;
       case "Completed":
-        message = `Your session completed. Notes: ${session.notes || "N/A"}`;
+        message = `Your session on ${(new Date(session.sessionTime)).toLocaleString()} is completed. Notes: ${session.notes || "N/A"}`;
         break;
       case "Cancelled":
-        message = `Your session was cancelled.`;
+        message = `Your session for ${(new Date(session.sessionTime)).toLocaleString()} was cancelled.`;
         break;
       default:
         message = `Session update.`;
@@ -90,6 +88,15 @@ router.post("/send-notification", async (req, res) => {
 
       await transporter.sendMail(mailOptions);
     }
+  }
+
+router.post("/send-notification", async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+
+    //extracted logic into a function
+    await sendNotification(sessionId);
+   
     return res
       .status(200)
       .json({
@@ -129,3 +136,4 @@ router.patch("/mark-as-read/:id", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.sendNotification = sendNotification; // Export the sendNotification function

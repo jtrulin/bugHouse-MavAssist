@@ -52,11 +52,12 @@ function StudentSchedule() {
     fetchUserSession();
   }, []);
 
+  //should hit a backend endpoint to fetch just upcoming sessions instead
   const fetchUpcomingSessions = useCallback(async () => {
     if (!userData || !userData.id) return;
 
     try {
-      const response = await axios.get(`${BACKEND_URL}/api/sessions/student/${userData.id}`, {
+      const response = await axios.get(`${BACKEND_URL}/api/sessions/student/upcoming/${userData.id}`, {
         withCredentials: true
       });
       setUpcomingSessions(response.data);
