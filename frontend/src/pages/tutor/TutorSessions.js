@@ -20,6 +20,7 @@ function TutorSessions() {
   const [error, setError] = useState("");
   const [userData, setUserData] = useState(null);
   const [attendance, setAttendance] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
 
   // Fetch the user session data
   useEffect(() => {
@@ -77,6 +78,28 @@ function TutorSessions() {
     }
   }, [userData, fetchSessions]);
 
+  //Fetch Attendance Records for no-show logic
+  const fetchAttendanceRecords = useCallback(async () => {
+    if (!userData || !userData.id) return;
+    try {
+      const response = await axios.get(
+        `${BACKEND_URL}/api/attendance/all`,
+        { withCredentials: true }
+      );
+      setAttendanceRecords(response.data);
+    } catch (error) {
+      console.error("Error fetching attendance records:", error);
+    }
+  }, [userData]);
+
+  useEffect(() => {
+    if (userData && userData.id) {
+      fetchAttendanceRecords();
+    }
+  }, [userData, fetchAttendanceRecords]);
+  //logic ends 
+
+
   const formatDateTime = (dateTime) => {
     // Create a date object and adjust for timezone
     const date = new Date(dateTime);
@@ -88,7 +111,7 @@ function TutorSessions() {
       });
   };
 
-  const handleStatusChange = async (sessionId, newStatus) => {
+  const handleStatusChange = async (sessionId, newStatus, noShow = false) => { //add noShow parameter
     if (!userData || !userData.id) {
       setError("User session expired. Please log in again.");
       return;
@@ -97,11 +120,12 @@ function TutorSessions() {
     try {
       await axios.put(
         `${BACKEND_URL}/api/sessions/${sessionId}/status`, 
-        { status: newStatus },
+        { status: newStatus, noShow },
         { withCredentials: true }
       );
       // Refresh sessions after status update
       fetchSessions();
+      fetchAttendanceRecords();
     } catch (error) {
       console.error("Error updating session status:", error);
       if (error.response) {
@@ -134,6 +158,31 @@ function TutorSessions() {
       fetchAttendance(); 
     }
   }, [userData, fetchSessions, fetchAttendance]);
+
+  // Helper to get attendance for a session
+  const getAttendanceForSession = (sessionId) => {
+    return attendanceRecords.find(
+      (record) => record.sessionID && record.sessionID._id === sessionId
+    );
+  };
+
+  // Optimistically update attendanceRecords
+  const handleMarkNoShow = async (sessionId) => {
+    setAttendanceRecords(prev => {
+      if (prev.some(r => r.sessionID && r.sessionID._id === sessionId)) return prev;
+      return [
+        ...prev,
+        {
+          sessionID: { _id: sessionId },
+          wasNoShow: true
+        }
+      ];
+    });
+    await handleStatusChange(sessionId, 'Cancelled', true); // Mark no-show = true
+    // After backend update, fetch fresh data to ensure sync
+    fetchAttendanceRecords();
+    fetchSessions();
+  };
 
   // Show loading spinner while either session or data is loading
   if (sessionLoading || loading) {
@@ -200,6 +249,13 @@ function TutorSessions() {
                         >
                           Mark as Completed
                         </button>
+                           <button
+                           /* handles it as a cancelled session for now */
+                          className={`${styles.actionButton} ${styles.noShowButton}`}
+                          onClick={() => handleMarkNoShow(session._id)}
+                        >
+                          Mark as No Show
+                        </button>
                         <button
                           className={`${styles.actionButton} ${styles.cancelButton}`}
                           onClick={() => handleStatusChange(session._id, 'Cancelled')}
@@ -260,24 +316,33 @@ function TutorSessions() {
 
           <div className={styles.cancelledSessions}>
             <h2>Cancelled Sessions</h2>
-            {sessions.filter(session => session.status === 'Cancelled' && session.studentID).length > 0 ? ( /*Checks if session status is "Cancelled" and that the student actually exists in the database*/
+            {sessions.filter(session => session.status === 'Cancelled' && session.studentID).length > 0 ? (
               <div className={styles.sessionsList}>
                 {sessions
-                  .filter(session => session.status === 'Cancelled' && session.studentID) /*Checks if session status is "Cancelled" and that the student actually exists in the database*/
+                  .filter(session => session.status === 'Cancelled' && session.studentID)
                   .sort((a, b) => new Date(b.sessionTime) - new Date(a.sessionTime))
-                  .map((session) => (
-                    <div key={session._id} className={`${styles.sessionCard}`}>
-                      <div className={styles.sessionInfo}>
-                        <p><strong>Student:</strong> {session.studentID ? `${session.studentID.firstName} ${session.studentID.lastName}` : 'Unknown Student'}</p> {/*Checks if student is null first*/}
-                        {session.courseID &&(
+                  .map((session) => {
+                    const attendanceForSession = getAttendanceForSession(session._id);
+                    return (
+                      <div key={session._id} className={`${styles.sessionCard}`}>
+                        <div className={styles.sessionInfo}>
+                          <p>
+                            <strong>Student:</strong> {session.studentID ? `${session.studentID.firstName} ${session.studentID.lastName}` : 'Unknown Student'}
+                            {/*less strict check to detect No Show */}
+                            {attendanceForSession?.checkInStatus === 'No Show' && (
+                                <span className={styles.noShowTag}>No Show</span>
+                              )}
+                          </p>
+                          {session.courseID &&(
                           <p><strong>Course:</strong> {session.courseID.code} - {session.courseID.title}</p>
                         )}
                         <p><strong>Date & Time:</strong> {formatDateTime(session.sessionTime)}</p>
-                        <p><strong>Duration:</strong> {session.duration} minutes</p>
-                        <p><strong>Status:</strong> {session.status}</p>
+                          <p><strong>Duration:</strong> {session.duration} minutes</p>
+                          <p><strong>Status:</strong> {session.status}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             ) : (
               <p className={styles.noSessions}>No cancelled sessions</p>

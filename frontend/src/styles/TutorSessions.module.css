@@ -55,6 +55,19 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.noShowTag {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15em 0.7em;
+  background: #ffc107;
+  color: #333;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 600;
+  vertical-align: middle;
+  letter-spacing: 0.5px;
+}
+
 .sessionsList {
   display: flex;
   flex-direction: column;
@@ -105,6 +118,16 @@
 .cancelButton {
   background-color: #dc3545;
   color: white;
+}
+
+.noShowButton{
+  background-color: #ffc107;
+  color: white;
+}
+
+.noShowButton
+:hover {
+  background-color: #e0a800;
 }
 
 .cancelButton:hover {

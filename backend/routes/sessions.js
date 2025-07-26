@@ -235,7 +235,8 @@ router.get('/all', async (req, res) => {
 // Update session status
 router.put('/:sessionId/status', async (req, res) => {
   try {
-    const { status } = req.body;
+    //added noShow flag
+    const { status, noShow } = req.body;
 
     if (!['Scheduled', 'Completed', 'Cancelled'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
@@ -282,12 +283,20 @@ router.put('/:sessionId/status', async (req, res) => {
         sessionID: session._id,
         studentID,
         wasNoShow: true,
-        checkInStatus: 'Cancelled',
-        checkOutStatus: 'Cancelled',
+        //now updates check-in and check-out status based on noShow flag
+        checkInStatus: noShow ? 'No Show' : 'Cancelled',
+        checkOutStatus: noShow ? 'No Show' : 'Cancelled',
         duration: 0
       });
 
       await attendance.save();
+    } else if (status === 'Cancelled' && existingAttendance) {
+      existingAttendance.wasNoShow = true;
+      //now updates check-in and check-out status based on noShow flag
+      existingAttendance.checkInStatus = noShow ? 'No Show' : 'Cancelled';
+      existingAttendance.checkOutStatus = noShow ? 'No Show' : 'Cancelled';
+      existingAttendance.duration = 0;
+      await existingAttendance.save();
     }
 
     session.status = status;
